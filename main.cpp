@@ -7,8 +7,13 @@
 #include <netdb.h>
 #include <csignal>
 
+#define BACKLOG 5
+
 int main() {
     int status;
+    int net_fd, new_fd;
+    struct sockaddr_storage their_addr{0};
+    socklen_t addr_size = sizeof their_addr;
     struct sockaddr_in sa{};
     struct addrinfo hints{0};
     struct addrinfo *servinfo;
@@ -28,27 +33,51 @@ int main() {
                   << std::endl;
         exit(EXIT_FAILURE);
     }
-    int fd = socket(servinfo->ai_family, servinfo->ai_socktype,
+    net_fd = socket(servinfo->ai_family, servinfo->ai_socktype,
                     servinfo->ai_protocol);
-    if (fd == -1) {
+    if (net_fd == -1) {
         std::cout << "Could not get file descriptor for address info.\n"
                   << strerror(errno) << std::endl;
         exit(EXIT_FAILURE);
     }
 
-    if (bind(fd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
+    if (bind(net_fd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
         std::cout << "Could not bind to network file descriptor.\n"
                   << strerror(errno) << std::endl;
         exit(EXIT_FAILURE);
     }
 
+    if (listen(net_fd, BACKLOG) == -1) {
+        std::cout << "Could not listen to net_fd.\n" << strerror(errno)
+                  << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    new_fd = accept(net_fd, (sockaddr *) (&their_addr), &addr_size);
+    if (new_fd == -1) {
+        std::cout << "Error accepting connection.\n" << strerror(errno)
+                  << std::endl;
+    }
+
+    std::string msg = "Hello, World!";
+    int msg_len, bytes_sent;
+
+    msg_len = msg.length();
+    bytes_sent = send(new_fd, msg.c_str(), msg_len, 0);
+
+    if (bytes_sent == -1) {
+        std::cout << "Error sending message.\n" << strerror(errno) << std::endl;
+    } else {
+        std::cout << "Sent Message!" << std::endl;
+    }
+
     std::cout << "Hello, World!" << std::endl;
-    
+
     freeaddrinfo(servinfo);
-    if (close(fd) == -1) {
+    if (close(net_fd) == -1) {
         std::cout << "Could not close file descriptor.\n" << strerror(errno)
                   << std::endl;
         exit(EXIT_FAILURE);
-    };
+    }
     return 0;
 }
